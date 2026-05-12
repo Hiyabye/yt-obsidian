@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-from openai import OpenAI
+SUPPORTED_PROVIDERS = {"openai", "genai"}
 
 
 def apply_max_chars(text: str, max_chars: int | None) -> str:
@@ -42,21 +43,14 @@ def split_text(text: str, chunk_size: int) -> list[str]:
 
 
 class TranscriptProcessor:
-    def __init__(self) -> None:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY is missing. Add it to your .env file.")
-
-        base_url = os.getenv("OPENAI_BASE_URL")
-        if not base_url:
-            raise ValueError("OPENAI_BASE_URL is missing. Add it to your .env file.")
-
-        model = os.getenv("OPENAI_MODEL")
-        if not model:
-            raise ValueError("OPENAI_MODEL is missing. Add it to your .env file.")
-
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
-        self.model = model
+    def __init__(self, provider: str | None = None) -> None:
+        self.provider = normalize_provider(provider)
+        if self.provider == "openai":
+            self.backend = OpenAIProcessorBackend()
+        elif self.provider == "genai":
+            self.backend = GenAIProcessorBackend()
+        else:
+            raise ValueError(f"Unsupported AI provider: {self.provider}")
 
     def to_obsidian_markdown(
         self,
@@ -64,11 +58,10 @@ class TranscriptProcessor:
         title: str | None = None,
         chunk_size: int | None = None,
         max_chars: int | None = None,
+        input_file: Path | None = None,
     ) -> str:
         transcript = apply_max_chars(transcript, max_chars)
-        chunks = (
-            split_text(transcript, chunk_size) if chunk_size else [transcript]
-        )
+        chunks = split_text(transcript, chunk_size) if chunk_size else [transcript]
         if not chunks:
             return ""
 
@@ -77,17 +70,24 @@ class TranscriptProcessor:
         for index, chunk in enumerate(chunks):
             allow_title = index == 0
             part_number = index + 1
-            response = self.client.responses.create(
-                model=self.model,
-                instructions=self._instructions(
-                    title,
-                    allow_title=allow_title,
-                    part_number=part_number,
-                    total_parts=total_parts,
-                ),
-                input=chunk,
+            instructions = self._instructions(
+                title,
+                allow_title=allow_title,
+                part_number=part_number,
+                total_parts=total_parts,
             )
-            outputs.append(response.output_text.strip())
+            use_input_file = (
+                input_file is not None
+                and self.provider == "genai"
+                and chunk_size is None
+                and max_chars is None
+            )
+            output = self.backend.generate(
+                instructions=instructions,
+                transcript=chunk,
+                input_file=input_file if use_input_file else None,
+            )
+            outputs.append(output.strip())
 
         return "\n\n".join(output for output in outputs if output)
 
@@ -126,3 +126,96 @@ class TranscriptProcessor:
             "Do not summarize, shorten, add unsupported facts, or wrap the result in code fences.\n"
             "Return only Markdown."
         )
+
+
+def normalize_provider(provider: str | None = None) -> str:
+    value = provider or os.getenv("AI_PROVIDER", "openai")
+    normalized = value.strip().lower()
+    if normalized not in SUPPORTED_PROVIDERS:
+        supported = ", ".join(sorted(SUPPORTED_PROVIDERS))
+        raise ValueError(f"AI provider must be one of: {supported}")
+    return normalized
+
+
+class OpenAIProcessorBackend:
+    def __init__(self) -> None:
+        from openai import OpenAI
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is missing. Add it to your .env file.")
+
+        base_url = os.getenv("OPENAI_BASE_URL")
+        if not base_url:
+            raise ValueError("OPENAI_BASE_URL is missing. Add it to your .env file.")
+
+        model = os.getenv("OPENAI_MODEL")
+        if not model:
+            raise ValueError("OPENAI_MODEL is missing. Add it to your .env file.")
+
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+
+    def generate(
+        self,
+        instructions: str,
+        transcript: str,
+        input_file: Path | None = None,
+    ) -> str:
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=instructions,
+            input=transcript,
+        )
+        return response.output_text
+
+
+class GenAIProcessorBackend:
+    def __init__(self) -> None:
+        from google import genai
+
+        api_key = (
+            os.getenv("GENAI_API_KEY")
+            or os.getenv("GEMINI_API_KEY")
+            or os.getenv("GOOGLE_API_KEY")
+        )
+        if not api_key:
+            raise ValueError(
+                "GENAI_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY is missing. "
+                "Add one to your .env file."
+            )
+
+        model = os.getenv("GENAI_MODEL")
+        if not model:
+            raise ValueError("GENAI_MODEL is missing. Add it to your .env file.")
+
+        self.client = genai.Client(api_key=api_key)
+        self.model = model
+
+    def generate(
+        self,
+        instructions: str,
+        transcript: str,
+        input_file: Path | None = None,
+    ) -> str:
+        if input_file is not None:
+            uploaded_file = self.client.files.upload(file=input_file)
+            contents = [
+                (
+                    f"{instructions}\n\n"
+                    "Convert the uploaded transcript file into Obsidian-ready Markdown."
+                ),
+                uploaded_file,
+            ]
+        else:
+            contents = [instructions, transcript]
+
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=contents,
+        )
+        if response.text is None:
+            raise ValueError(
+                "GenAI returned an empty response. Check the model and prompt settings."
+            )
+        return response.text

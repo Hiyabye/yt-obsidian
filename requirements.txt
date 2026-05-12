@@ -1,3 +1,5 @@
+google-genai>=2.0.0
 openai>=1.86.0
 python-dotenv>=1.0.1
 youtube-transcript-api>=1.0.0
+dotenv>=0.9.9

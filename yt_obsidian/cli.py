@@ -5,12 +5,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from yt_obsidian.files import read_text, write_text
-from yt_obsidian.processor import TranscriptProcessor
+from yt_obsidian.processor import SUPPORTED_PROVIDERS, TranscriptProcessor
 from yt_obsidian.transcripts import (
     DEFAULT_LANGUAGE_CODES,
     YouTubeTranscriptService,
-    parse_video_id,
     parse_language_codes,
+    parse_video_id,
     slugify,
 )
 
@@ -64,9 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also generate an Obsidian Markdown note.",
     )
     fetch.add_argument(
+        "--provider",
+        choices=sorted(SUPPORTED_PROVIDERS),
+        help="AI provider for processing. Defaults to AI_PROVIDER or openai.",
+    )
+    fetch.add_argument(
         "--chunk-size",
         type=int,
-        help="Max characters per OpenAI request; enables chunking.",
+        help="Max characters per AI request; enables chunking.",
     )
     fetch.add_argument(
         "--max-chars",
@@ -87,9 +92,14 @@ def build_parser() -> argparse.ArgumentParser:
     process.add_argument("--title", help="Title to use for the Obsidian note.")
     process.add_argument("--output", type=Path, help="Markdown output path.")
     process.add_argument(
+        "--provider",
+        choices=sorted(SUPPORTED_PROVIDERS),
+        help="AI provider for processing. Defaults to AI_PROVIDER or openai.",
+    )
+    process.add_argument(
         "--chunk-size",
         type=int,
-        help="Max characters per OpenAI request; enables chunking.",
+        help="Max characters per AI request; enables chunking.",
     )
     process.add_argument(
         "--max-chars",
@@ -154,13 +164,14 @@ def fetch_command(args: argparse.Namespace) -> None:
     if args.raw_only or not args.process:
         return
 
-    processor = TranscriptProcessor()
-    log("Processing transcript with OpenAI...", args.quiet)
+    processor = TranscriptProcessor(provider=args.provider)
+    log(f"Processing transcript with {processor.provider}...", args.quiet)
     markdown = processor.to_obsidian_markdown(
         transcript,
         title=args.title,
         chunk_size=args.chunk_size,
         max_chars=args.max_chars,
+        input_file=raw_path,
     )
     markdown_path = output_dir / f"{slug}.md"
     write_text(markdown_path, markdown)
@@ -175,13 +186,14 @@ def process_command(args: argparse.Namespace) -> None:
     title = args.title or args.input_file.stem
     output_path = args.output or args.input_file.with_suffix(".md")
 
-    processor = TranscriptProcessor()
-    log("Processing transcript with OpenAI...", args.quiet)
+    processor = TranscriptProcessor(provider=args.provider)
+    log(f"Processing transcript with {processor.provider}...", args.quiet)
     markdown = processor.to_obsidian_markdown(
         transcript,
         title=title,
         chunk_size=args.chunk_size,
         max_chars=args.max_chars,
+        input_file=args.input_file,
     )
     write_text(output_path, markdown)
     print(f"Obsidian Markdown saved to: {output_path}")
