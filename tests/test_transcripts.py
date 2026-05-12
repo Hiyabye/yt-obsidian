@@ -1,6 +1,6 @@
 import unittest
 
-from yt_obsidian.transcripts import parse_video_id, slugify
+from yt_obsidian.transcripts import parse_language_codes, parse_video_id, slugify
 
 
 class TranscriptUtilsTest(unittest.TestCase):
@@ -22,6 +22,12 @@ class TranscriptUtilsTest(unittest.TestCase):
 
     def test_slugify(self) -> None:
         self.assertEqual(slugify("Your Success in Life"), "your-success-in-life")
+
+    def test_parse_language_codes(self) -> None:
+        self.assertEqual(parse_language_codes("en, ko ,ja"), ["en", "ko", "ja"])
+
+    def test_parse_language_codes_ignores_empty(self) -> None:
+        self.assertEqual(parse_language_codes(" , ,"), [])
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ Obsidian-ready Markdown.
 
 It does only a few things:
 
-- fetch English transcripts from YouTube
+- fetch transcripts from YouTube (multi-language)
 - save the raw transcript to `output/`
 - convert a transcript into Markdown with `##` headings
 
@@ -28,22 +28,40 @@ OPENAI_BASE_URL=https://example.com/v1
 
 ## Usage
 
-Fetch a transcript and create an Obsidian Markdown note:
+Fetch a transcript (raw only by default):
 
 ```bash
-python main.py fetch "https://www.youtube.com/watch?v=Unzc731iCUY" --title "Lecture 1"
+python main.py fetch "https://www.youtube.com/watch?v=Unzc731iCUY" --title "How to Speak"
 ```
 
-Fetch only the raw English transcript:
+Fetch and also create an Obsidian Markdown note:
 
 ```bash
-python main.py fetch "Unzc731iCUY" --raw-only
+python main.py fetch "Unzc731iCUY" --process --title "How to Speak"
+```
+
+Fetch a non-English transcript by language priority:
+
+```bash
+python main.py fetch "Unzc731iCUY" --lang "ko,en" --title "How to Speak"
+```
+
+List available transcript languages:
+
+```bash
+python main.py fetch "Unzc731iCUY" --list-languages
 ```
 
 Process an existing transcript file:
 
 ```bash
-python main.py process output/lecture-1.raw.txt --title "Lecture 1"
+python main.py process output/how-to-speak.raw.txt --title "How to Speak"
+```
+
+Chunk long transcripts or cap length to control cost:
+
+```bash
+python main.py process output/how-to-speak.raw.txt --chunk-size 8000 --max-chars 60000
 ```
 
 ## Project Layout
