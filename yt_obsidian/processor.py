@@ -115,15 +115,17 @@ class TranscriptProcessor:
             )
 
         return (
-            "You prepare YouTube transcripts for an Obsidian vault.\n"
+            "You format YouTube transcripts for an Obsidian vault. This is formatting, not summarizing.\n"
             f"{title_rule}"
             f"{part_rule}"
             "Add useful Markdown H2 subheadings using the exact '## ' syntax.\n"
-            "Keep the lecture content faithful and complete.\n"
-            "Lightly repair punctuation and paragraph breaks only when it improves readability.\n"
+            "Preserve every spoken sentence in order. Do not paraphrase, compress, or rewrite.\n"
+            "Keep wording as-is; only fix punctuation and paragraph breaks when it improves readability.\n"
+            "If something seems unclear or repetitive, keep it anyway.\n"
             "Remove only non-course material from the beginning or end, such as greetings, "
             "channel intro fluff, subscribe reminders, thanks, and sign-offs.\n"
-            "Do not summarize, shorten, add unsupported facts, or wrap the result in code fences.\n"
+            "Do not replace paragraphs with bullet summaries or shorter lists.\n"
+            "DO NOT summarize, shorten, add unsupported facts, or wrap the result in code fences.\n"
             "Return only Markdown."
         )
 
